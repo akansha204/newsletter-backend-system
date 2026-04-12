@@ -1,0 +1,14 @@
+# Binaries
+/bin/
+*.exe
+*.out
+
+# Environment files (never commit secrets)
+.env
+
+# Go
+vendor/
+
+# OS
+.DS_Store
+Thumbs.db

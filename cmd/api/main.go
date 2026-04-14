@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/gofiber/fiber/v2"
+
+	"github.com/akansh204/newsletter-backend-system/internal/api"
+
 	"github.com/akansh204/newsletter-backend-system/internal/config"
 	"github.com/akansh204/newsletter-backend-system/internal/database"
 )
@@ -11,14 +15,19 @@ import (
 func main() {
 	cfg := config.Load()
 
-	fmt.Println("=== Config Loaded ===")
-	fmt.Printf("App Port : %s\n", cfg.App.Port)
-	fmt.Printf("DB Host  : %s\n", cfg.DB.Host)
-	fmt.Printf("DB Name  : %s\n", cfg.DB.Name)
-	fmt.Println("=====================")
+	fmt.Println("=== Newsletter System Starting ===")
 
 	db := database.Connect(&cfg.DB)
 	defer db.Close()
 
-	log.Println("all systems ready")
+	app := fiber.New(fiber.Config{
+		AppName: "Newsletter System v1",
+	})
+
+	api.SetupRoutes(app, db)
+	log.Printf("server starting on port %s", cfg.App.Port)
+	if err := app.Listen(":" + cfg.App.Port); err != nil {
+		log.Fatalf("server failed to start: %v", err)
+	}
+
 }

@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS subscribers (
     email       VARCHAR(255) NOT NULL UNIQUE,
     confirmed   BOOLEAN NOT NULL DEFAULT FALSE,
     token       VARCHAR(255) NOT NULL,
+    token_expires_at TIMESTAMP NOT NULL,
     created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
 );

@@ -7,17 +7,20 @@ import (
 	"time"
 
 	"github.com/akansh204/newsletter-backend-system/internal/domain"
+	"github.com/akansh204/newsletter-backend-system/internal/queue"
 	"github.com/akansh204/newsletter-backend-system/internal/repository"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
 
 type SubscribeHandler struct {
-	repo repository.SubscriberRepository
+	repo      repository.SubscriberRepository
+	publisher *queue.Publisher
 }
 
-func NewSubscribeHandler(repo repository.SubscriberRepository) *SubscribeHandler {
-	return &SubscribeHandler{repo: repo}
+func NewSubscribeHandler(repo repository.SubscriberRepository, publisher *queue.Publisher) *SubscribeHandler {
+	return &SubscribeHandler{repo: repo, publisher: publisher}
 }
 
 type subscribeRequest struct {
@@ -77,9 +80,15 @@ func (h *SubscribeHandler) Handle(c *fiber.Ctx) error {
 		})
 	}
 
+	if err := h.publisher.PublishConfirmation(queue.ConfirmationPayload{
+		Email: subscriber.Email,
+		Token: subscriber.Token,
+	}); err != nil {
+		log.Printf("failed to publish confirmation email job: %v", err)
+	}
+
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "please check your email to confirm your subscription",
-		"token":   token,
 	})
 }
 

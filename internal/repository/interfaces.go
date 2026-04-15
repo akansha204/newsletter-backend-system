@@ -9,3 +9,11 @@ type SubscriberRepository interface {
 	Confirm(id string) error
 	FindAllConfirmed() ([]domain.Subscriber, error)
 }
+
+type NewsletterRepository interface {
+	Create(n *domain.NewsletterSend) error
+	UpdateStatus(id string, status string) error
+	IncrementSentCount(id string) error
+	IncrementFailCount(id string) error
+	FindByID(id string) (*domain.NewsletterSend, error)
+}

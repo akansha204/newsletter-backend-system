@@ -6,18 +6,21 @@ import (
 	"log"
 
 	"github.com/akansh204/newsletter-backend-system/internal/email"
+	"github.com/akansh204/newsletter-backend-system/internal/repository"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type Consumer struct {
-	channel       *amqp.Channel
-	emailProvider email.Provider
+	channel        *amqp.Channel
+	emailProvider  email.Provider
+	newsletterRepo repository.NewsletterRepository
 }
 
-func NewConsumer(conn *Connection, emailProvider email.Provider) *Consumer {
+func NewConsumer(conn *Connection, emailProvider email.Provider, newsletterRepo repository.NewsletterRepository) *Consumer {
 	return &Consumer{
-		channel:       conn.Channel,
-		emailProvider: emailProvider,
+		channel:        conn.Channel,
+		emailProvider:  emailProvider,
+		newsletterRepo: newsletterRepo,
 	}
 }
 
@@ -93,8 +96,15 @@ func (c *Consumer) StartNewsletterWorker() {
 
 			if err := c.emailProvider.Send(payload.Email, payload.Subject, payload.Body); err != nil {
 				log.Printf("failed to send newsletter to %s: %v", payload.Email, err)
+				if err := c.newsletterRepo.IncrementSentCount(payload.NewsletterID); err != nil {
+					log.Printf("failed to increment sent count for %s: %v", payload.NewsletterID, err)
+				}
 				msg.Nack(false, true)
 				continue
+			}
+
+			if err := c.newsletterRepo.IncrementSentCount(payload.NewsletterID); err != nil {
+				log.Printf("failed to increment sent count for %s: %v", payload.NewsletterID, err)
 			}
 
 			msg.Ack(false)

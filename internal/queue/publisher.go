@@ -18,9 +18,10 @@ type ConfirmationPayload struct {
 }
 
 type NewsletterPayload struct {
-	Email   string `json:"email"`
-	Subject string `json:"subject"`
-	Body    string `json:"body"`
+	NewsletterID string `json:"newsletter_id"`
+	Email        string `json:"email"`
+	Subject      string `json:"subject"`
+	Body         string `json:"body"`
 }
 
 type Publisher struct {

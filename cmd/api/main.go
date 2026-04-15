@@ -12,11 +12,13 @@ import (
 	"github.com/akansh204/newsletter-backend-system/internal/config"
 	"github.com/akansh204/newsletter-backend-system/internal/database"
 	"github.com/akansh204/newsletter-backend-system/internal/email"
+	"github.com/akansh204/newsletter-backend-system/internal/metrics"
 	"github.com/akansh204/newsletter-backend-system/internal/queue"
 )
 
 func main() {
 	cfg := config.Load()
+	metrics.Init()
 
 	fmt.Println("=== Newsletter System Starting ===")
 

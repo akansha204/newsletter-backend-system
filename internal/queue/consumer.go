@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/akansh204/newsletter-backend-system/internal/email"
+	"github.com/akansh204/newsletter-backend-system/internal/metrics"
 	"github.com/akansh204/newsletter-backend-system/internal/repository"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -59,10 +61,12 @@ func (c *Consumer) StartConfirmationWorker() {
 
 			if err := c.emailProvider.Send(payload.Email, subject, body); err != nil {
 				log.Printf("failed to send confirmation email to %s: %v", payload.Email, err)
+				metrics.EmailsFailed.Inc()
 				msg.Nack(false, true) //requue
 				continue
 			}
 
+			metrics.EmailsSent.Inc()
 			msg.Ack(false) //done processing
 			log.Printf("confirmation email sent to %s", payload.Email)
 		}
@@ -88,24 +92,32 @@ func (c *Consumer) StartNewsletterWorker() {
 	go func() {
 		for msg := range msgs {
 			var payload NewsletterPayload
+
 			if err := json.Unmarshal(msg.Body, &payload); err != nil {
 				log.Printf("failed to parse newsletter message: %v", err)
 				msg.Nack(false, false)
 				continue
 			}
 
-			if err := c.emailProvider.Send(payload.Email, payload.Subject, payload.Body); err != nil {
+			start := time.Now()
+
+			err := c.emailProvider.Send(payload.Email, payload.Subject, payload.Body)
+
+			duration := time.Since(start).Seconds()
+			metrics.EmailProcessingDuration.Observe(duration)
+
+			if err != nil {
 				log.Printf("failed to send newsletter to %s: %v", payload.Email, err)
-				if err := c.newsletterRepo.IncrementSentCount(payload.NewsletterID); err != nil {
-					log.Printf("failed to increment sent count for %s: %v", payload.NewsletterID, err)
-				}
+
+				metrics.EmailsFailed.Inc()
+				_ = c.newsletterRepo.IncrementFailCount(payload.NewsletterID)
+
 				msg.Nack(false, true)
 				continue
 			}
 
-			if err := c.newsletterRepo.IncrementSentCount(payload.NewsletterID); err != nil {
-				log.Printf("failed to increment sent count for %s: %v", payload.NewsletterID, err)
-			}
+			metrics.EmailsSent.Inc()
+			_ = c.newsletterRepo.IncrementSentCount(payload.NewsletterID)
 
 			msg.Ack(false)
 			log.Printf("newsletter sent to %s", payload.Email)

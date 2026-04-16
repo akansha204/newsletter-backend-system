@@ -4,17 +4,20 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	App      AppConfig
-	DB       DBConfig
-	Redis    RedisConfig
-	RabbitMQ RabbitMQConfig
-	Email    EmailConfig
-	Admin    AdminConfig
+	App       AppConfig
+	DB        DBConfig
+	Redis     RedisConfig
+	RateLimit RateLimitConfig
+	RabbitMQ  RabbitMQConfig
+	Email     EmailConfig
+	Admin     AdminConfig
 }
 
 type AppConfig struct {
@@ -36,6 +39,12 @@ type RedisConfig struct {
 	Port string
 }
 
+type RateLimitConfig struct {
+	Enabled bool
+	Limit   int
+	Window  time.Duration
+}
+
 type RabbitMQConfig struct {
 	URL string
 }
@@ -55,7 +64,7 @@ func Load() *Config {
 		log.Println("warning: no .env file found, reading from system environment")
 	}
 
-	return &Config{
+	cfg := &Config{
 		App: AppConfig{
 			Port: getEnvOptional("APP_PORT", "3001"),
 			Env:  getEnvOptional("APP_ENV", "development"),
@@ -69,21 +78,53 @@ func Load() *Config {
 			SSLMode:  getEnvOptional("DB_SSLMODE", "disable"),
 		},
 		Redis: RedisConfig{
-			Host: getEnvRequired("REDIS_HOST"),
-			Port: getEnvRequired("REDIS_PORT"),
+			Host: getEnvOptional("REDIS_HOST", ""),
+			Port: getEnvOptional("REDIS_PORT", ""),
+		},
+		RateLimit: RateLimitConfig{
+			Enabled: getEnvOptionalBool("RATE_LIMIT_ENABLED", true),
+			Limit:   getEnvOptionalInt("RATE_LIMIT_MAX_REQUESTS", 5),
+			Window:  getEnvOptionalDuration("RATE_LIMIT_WINDOW", time.Minute),
 		},
 		RabbitMQ: RabbitMQConfig{
 			URL: getEnvRequired("RABBITMQ_URL"),
 		},
 		Email: EmailConfig{
-			Provider:    getEnvRequired("EMAIL_PROVIDER"),
+			Provider:    getEnvOptional("EMAIL_PROVIDER", "sendgrid"),
 			SendGridKey: getEnvOptional("SENDGRID_API_KEY", ""),
 			SESRegion:   getEnvOptional("AWS_SES_REGION", "us-east-1"),
 		},
 		Admin: AdminConfig{
-			APIKey: getEnvRequired("ADMIN_API_KEY"),
+			APIKey: getEnvOptional("ADMIN_API_KEY", ""),
 		},
 	}
+
+	return cfg
+}
+
+func (c *Config) ValidateForAPI() error {
+	if c.Redis.Host == "" || c.Redis.Port == "" {
+		return fmt.Errorf("REDIS_HOST and REDIS_PORT are required for the API process")
+	}
+	if c.Admin.APIKey == "" {
+		return fmt.Errorf("ADMIN_API_KEY is required for the API process")
+	}
+	if c.RateLimit.Enabled {
+		if c.RateLimit.Limit <= 0 {
+			return fmt.Errorf("RATE_LIMIT_MAX_REQUESTS must be greater than 0 when rate limiting is enabled")
+		}
+		if c.RateLimit.Window <= 0 {
+			return fmt.Errorf("RATE_LIMIT_WINDOW must be greater than 0 when rate limiting is enabled")
+		}
+	}
+	return nil
+}
+
+func (c *Config) ValidateForWorker() error {
+	if c.Email.Provider == "" {
+		return fmt.Errorf("EMAIL_PROVIDER is required for the worker process")
+	}
+	return nil
 }
 
 func getEnvRequired(key string) string {
@@ -99,4 +140,46 @@ func getEnvOptional(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func getEnvOptionalInt(key string, defaultValue int) int {
+	value, exists := os.LookupEnv(key)
+	if !exists || value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		panic(fmt.Sprintf("invalid integer value for %s: %q", key, value))
+	}
+
+	return parsed
+}
+
+func getEnvOptionalBool(key string, defaultValue bool) bool {
+	value, exists := os.LookupEnv(key)
+	if !exists || value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		panic(fmt.Sprintf("invalid boolean value for %s: %q", key, value))
+	}
+
+	return parsed
+}
+
+func getEnvOptionalDuration(key string, defaultValue time.Duration) time.Duration {
+	value, exists := os.LookupEnv(key)
+	if !exists || value == "" {
+		return defaultValue
+	}
+
+	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		panic(fmt.Sprintf("invalid duration value for %s: %q", key, value))
+	}
+
+	return parsed
 }

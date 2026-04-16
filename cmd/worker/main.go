@@ -19,6 +19,9 @@ import (
 
 func main() {
 	cfg := config.Load()
+	if err := cfg.ValidateForWorker(); err != nil {
+		log.Fatalf("invalid worker configuration: %v", err)
+	}
 	metrics.Init()
 
 	fmt.Println("=== Newsletter Worker Starting ===")

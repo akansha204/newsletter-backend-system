@@ -17,10 +17,14 @@ import (
 	"github.com/akansh204/newsletter-backend-system/internal/database"
 	"github.com/akansh204/newsletter-backend-system/internal/metrics"
 	"github.com/akansh204/newsletter-backend-system/internal/queue"
+	redisclient "github.com/akansh204/newsletter-backend-system/internal/redis"
 )
 
 func main() {
 	cfg := config.Load()
+	if err := cfg.ValidateForAPI(); err != nil {
+		log.Fatalf("invalid API configuration: %v", err)
+	}
 	metrics.Init()
 
 	fmt.Println("=== Newsletter System Starting ===")
@@ -30,6 +34,8 @@ func main() {
 
 	queueConn := queue.NewConnection(cfg.RabbitMQ.URL)
 	defer queueConn.Close()
+	rdb := redisclient.NewRedisClient(cfg.Redis.Host + ":" + cfg.Redis.Port)
+	defer rdb.Close()
 
 	publisher := queue.NewPublisher(queueConn)
 
@@ -37,7 +43,7 @@ func main() {
 		AppName: "Newsletter System v1",
 	})
 
-	api.SetupRoutes(app, db, queueConn, publisher, cfg.Admin.APIKey)
+	api.SetupRoutes(app, db, rdb, queueConn, publisher, cfg.Admin.APIKey, cfg.RateLimit)
 	log.Printf("server starting on port %s", cfg.App.Port)
 	go func() {
 		if err := app.Listen(":" + cfg.App.Port); err != nil {

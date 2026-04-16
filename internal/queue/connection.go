@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"context"
 	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -24,6 +25,16 @@ func NewConnection(url string) *Connection {
 
 	log.Println("rabbitmq connected successfully")
 	return &Connection{conn: conn, Channel: channel}
+}
+
+func (c *Connection) HealthCheck(_ context.Context) error {
+	if c == nil || c.conn == nil || c.Channel == nil {
+		return amqp.ErrClosed
+	}
+	if c.conn.IsClosed() || c.Channel.IsClosed() {
+		return amqp.ErrClosed
+	}
+	return nil
 }
 
 func (c *Connection) Close() {

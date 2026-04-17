@@ -34,7 +34,7 @@ func (r redisHealthChecker) HealthCheck(ctx context.Context) error {
 	return r.client.Ping(ctx).Err()
 }
 
-func SetupRoutes(app *fiber.App, db *sqlx.DB, redisClient *redis.Client, queueConn *queue.Connection, publisher *queue.Publisher, adminAPIKey string, rateLimitCfg config.RateLimitConfig) {
+func SetupRoutes(app *fiber.App, db *sqlx.DB, redisClient *redis.Client, queueConn *queue.Connection, publisher *queue.Publisher, adminAPIKey string, rateLimitCfg config.RateLimitConfig, idempotencyCfg config.IdempotencyConfig) {
 	//repositories
 	subscriberRepo := postgres.NewSubscriberRepository(db)
 	newsletterRepo := postgres.NewNewsletterRepository(db)
@@ -67,6 +67,10 @@ func SetupRoutes(app *fiber.App, db *sqlx.DB, redisClient *redis.Client, queueCo
 	}
 
 	newsletterapi := api.Group("/newsletter", middleware.APIKeyAuth(adminAPIKey))
-	newsletterapi.Post("/send", newsletterHandler.HandleSend)
+	if idempotencyCfg.Enabled {
+		newsletterapi.Post("/send", middleware.Idempotency(redisClient, idempotencyCfg.TTL), newsletterHandler.HandleSend)
+	} else {
+		newsletterapi.Post("/send", newsletterHandler.HandleSend)
+	}
 
 }

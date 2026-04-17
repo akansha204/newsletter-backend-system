@@ -43,7 +43,7 @@ func main() {
 		AppName: "Newsletter System v1",
 	})
 
-	api.SetupRoutes(app, db, rdb, queueConn, publisher, cfg.Admin.APIKey, cfg.RateLimit)
+	api.SetupRoutes(app, db, rdb, queueConn, publisher, cfg.Admin.APIKey, cfg.RateLimit, cfg.Idempotency)
 	log.Printf("server starting on port %s", cfg.App.Port)
 	go func() {
 		if err := app.Listen(":" + cfg.App.Port); err != nil {

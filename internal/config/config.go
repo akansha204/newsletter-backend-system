@@ -11,13 +11,14 @@ import (
 )
 
 type Config struct {
-	App       AppConfig
-	DB        DBConfig
-	Redis     RedisConfig
-	RateLimit RateLimitConfig
-	RabbitMQ  RabbitMQConfig
-	Email     EmailConfig
-	Admin     AdminConfig
+	App         AppConfig
+	DB          DBConfig
+	Redis       RedisConfig
+	RateLimit   RateLimitConfig
+	Idempotency IdempotencyConfig
+	RabbitMQ    RabbitMQConfig
+	Email       EmailConfig
+	Admin       AdminConfig
 }
 
 type AppConfig struct {
@@ -43,6 +44,11 @@ type RateLimitConfig struct {
 	Enabled bool
 	Limit   int
 	Window  time.Duration
+}
+
+type IdempotencyConfig struct {
+	Enabled bool
+	TTL     time.Duration
 }
 
 type RabbitMQConfig struct {
@@ -86,6 +92,10 @@ func Load() *Config {
 			Limit:   getEnvOptionalInt("RATE_LIMIT_MAX_REQUESTS", 5),
 			Window:  getEnvOptionalDuration("RATE_LIMIT_WINDOW", time.Minute),
 		},
+		Idempotency: IdempotencyConfig{
+			Enabled: getEnvOptionalBool("IDEMPOTENCY_ENABLED", true),
+			TTL:     getEnvOptionalDuration("IDEMPOTENCY_TTL", 10*time.Minute),
+		},
 		RabbitMQ: RabbitMQConfig{
 			URL: getEnvRequired("RABBITMQ_URL"),
 		},
@@ -116,6 +126,9 @@ func (c *Config) ValidateForAPI() error {
 		if c.RateLimit.Window <= 0 {
 			return fmt.Errorf("RATE_LIMIT_WINDOW must be greater than 0 when rate limiting is enabled")
 		}
+	}
+	if c.Idempotency.Enabled && c.Idempotency.TTL <= 0 {
+		return fmt.Errorf("IDEMPOTENCY_TTL must be greater than 0 when idempotency is enabled")
 	}
 	return nil
 }

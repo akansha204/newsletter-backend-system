@@ -23,6 +23,10 @@ type Consumer struct {
 }
 
 func NewConsumer(conn *Connection, emailProvider email.Provider, newsletterRepo repository.NewsletterRepository) *Consumer {
+	if err := declareQueues(conn.Channel); err != nil {
+		log.Fatalf("failed to declare queues: %v", err)
+	}
+
 	return &Consumer{
 		channel:        conn.Channel,
 		emailProvider:  emailProvider,

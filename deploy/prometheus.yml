@@ -8,6 +8,10 @@ scrape_configs:
       - targets: ["host.docker.internal:3001"]
     metrics_path: /api/v1/metrics
 
+  - job_name: "newsletter-worker"
+    static_configs:
+      - targets: ["host.docker.internal:3002"]
+
   - job_name: "prometheus"
     static_configs:
       - targets: ["localhost:9090"]

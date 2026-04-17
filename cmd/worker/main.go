@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,6 +16,7 @@ import (
 	"github.com/akansh204/newsletter-backend-system/internal/metrics"
 	"github.com/akansh204/newsletter-backend-system/internal/queue"
 	"github.com/akansh204/newsletter-backend-system/internal/repository/postgres"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -39,6 +41,22 @@ func main() {
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	defer workerCancel()
 
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("/metrics", promhttp.Handler())
+
+	metricsServer := &http.Server{
+		Addr:              ":" + cfg.Worker.MetricsPort,
+		Handler:           metricsMux,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	go func() {
+		log.Printf("worker metrics server listening on port %s", cfg.Worker.MetricsPort)
+		if err := metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("worker metrics server stopped: %v", err)
+		}
+	}()
+
 	if err := consumer.StartConfirmationWorker(workerCtx); err != nil {
 		log.Fatalf("failed to boot confirmation worker: %v", err)
 	}
@@ -53,6 +71,12 @@ func main() {
 	log.Println("shutting down workers...")
 
 	workerCancel()
+	metricsShutdownCtx, metricsShutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer metricsShutdownCancel()
+
+	if err := metricsServer.Shutdown(metricsShutdownCtx); err != nil {
+		log.Printf("worker metrics server shutdown failed: %v", err)
+	}
 
 	done := make(chan struct{})
 	go func() {

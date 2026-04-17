@@ -28,8 +28,8 @@ type Publisher struct {
 	channel *amqp.Channel
 }
 
-func NewPublisher(conn *Connection) *Publisher {
-	_, err := conn.Channel.QueueDeclare(
+func declareQueues(channel *amqp.Channel) error {
+	_, err := channel.QueueDeclare(
 		QueueConfirmation,
 		true,  // durable
 		false, // auto-delete
@@ -38,10 +38,10 @@ func NewPublisher(conn *Connection) *Publisher {
 		nil,   // arguments
 	)
 	if err != nil {
-		log.Fatalf("failed to declare confirmation queue: %v", err)
+		return err
 	}
 
-	_, err = conn.Channel.QueueDeclare(
+	_, err = channel.QueueDeclare(
 		QueueNewsletter,
 		true,
 		false,
@@ -50,7 +50,15 @@ func NewPublisher(conn *Connection) *Publisher {
 		nil,
 	)
 	if err != nil {
-		log.Fatalf("failed to declare newsletter queue: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+func NewPublisher(conn *Connection) *Publisher {
+	if err := declareQueues(conn.Channel); err != nil {
+		log.Fatalf("failed to declare queues: %v", err)
 	}
 
 	log.Println("queues declared successfully")

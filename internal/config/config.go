@@ -19,6 +19,7 @@ type Config struct {
 	RabbitMQ    RabbitMQConfig
 	Email       EmailConfig
 	Admin       AdminConfig
+	Worker      WorkerConfig
 }
 
 type AppConfig struct {
@@ -65,6 +66,10 @@ type AdminConfig struct {
 	APIKey string
 }
 
+type WorkerConfig struct {
+	MetricsPort string
+}
+
 func Load() *Config {
 	if err := godotenv.Load(".env"); err != nil {
 		log.Println("warning: no .env file found, reading from system environment")
@@ -106,6 +111,9 @@ func Load() *Config {
 		},
 		Admin: AdminConfig{
 			APIKey: getEnvOptional("ADMIN_API_KEY", ""),
+		},
+		Worker: WorkerConfig{
+			MetricsPort: getEnvOptional("WORKER_METRICS_PORT", "3002"),
 		},
 	}
 

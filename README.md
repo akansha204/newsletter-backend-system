@@ -984,7 +984,7 @@ Because the Grafana screenshots represent a captured time window rather than a r
 - additional integration tests around queue processing and idempotency replay would strengthen confidence
 - SDK source is checked in, but packaging and release automation are not set up yet
 
-## Suggested Next Enhancements
+## Next Enhancements
 
 1. Package and publish the Go, TypeScript, and Python SDKs for easier external adoption.
 2. Check in Grafana dashboard JSON under `deploy/grafana/dashboards` for reproducible monitoring.

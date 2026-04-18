@@ -15,6 +15,78 @@ The project currently supports:
 
 To make the implementation easier to follow, the sections below include small excerpts from the actual codebase so the architecture description maps directly to real files and logic.
 
+## Getting Started
+
+### Prerequisites
+
+- Docker & Docker Compose (for PostgreSQL, Redis, RabbitMQ)
+- Go 1.25+
+- A Resend account (https://resend.com) with API key
+
+### Email Configuration with Resend
+
+The system uses **Resend** for email delivery. To set up email delivery:
+
+1. **Get your Resend API key**
+   - Go to [Resend API Keys](https://resend.com/api-keys)
+   - Create or copy an existing API key
+
+2. **Configure `.env`**
+   
+   ```bash
+   # Email Provider
+   EMAIL_PROVIDER=resend
+   EMAIL_FROM_EMAIL=onboarding@resend.dev          # Pre-verified for testing, or use your verified domain
+   EMAIL_FROM_NAME=Newsletter System               # Display name in email clients
+   RESEND_API_KEY=re_your_api_key_here             # From Resend dashboard
+   RESEND_BASE_URL=https://api.resend.com          # Optional, has sensible default
+   RESEND_TIMEOUT=10s                              # Optional, has sensible default
+   ```
+
+3. **Important: Free Tier Limitations**
+   
+   If using Resend's free tier:
+   - You can only send test emails to **one verified email address** on your Resend account
+   - Subscribe and test with that email during development
+   - To send to multiple recipients, [verify a domain](https://resend.com/domains) and update `EMAIL_FROM_EMAIL` to use that domain
+   
+   Example:
+   ```bash
+   # For development (free tier) - limited to one test recipient
+   EMAIL_FROM_EMAIL=onboarding@resend.dev
+   
+   # For production (custom domain verified)
+   EMAIL_FROM_EMAIL=noreply@yourdomain.com
+   ```
+
+4. **Start services and test the flow**
+   
+   ```bash
+   # Start PostgreSQL, Redis, RabbitMQ using make
+   make infra-up
+   
+   # Start API (terminal 1)
+   go run ./cmd/api
+   
+   # Start worker (terminal 2)
+   go run ./cmd/worker
+   
+   # Subscribe (terminal 3)
+   curl -X POST http://localhost:3001/api/v1/subscribe \
+     -H "Content-Type: application/json" \
+     -d '{"email":"your-verified-email@example.com"}'
+   
+   # Get confirmation token from logs, then confirm
+   curl "http://localhost:3001/api/v1/confirm?token=TOKEN_FROM_LOGS"
+   
+   # Send newsletter
+   curl -X POST http://localhost:3001/api/v1/newsletter/send \
+     -H "Content-Type: application/json" \
+     -H "X-API-Key: YOUR_ADMIN_API_KEY" \
+     -H "Idempotency-Key: send-001" \
+     -d '{"subject":"Test Newsletter","body":"Hello from your newsletter system!"}'
+   ```
+
 ## Architecture Overview
 
 The implementation is intentionally split into synchronous and asynchronous paths:
@@ -40,7 +112,7 @@ flowchart LR
     routes --> publisher["RabbitMQ Publisher"]
     publisher --> rabbit["RabbitMQ\nconfirmation.queue\nnewsletter.queue"]
     rabbit --> worker["Worker Process\ncmd/worker"]
-    worker --> email["Email Provider\nSendGrid / provider abstraction"]
+    worker --> email["Email Provider\nResend / provider abstraction"]
     worker --> pg
 
     api --> apiMetrics["API Metrics\n/api/v1/metrics"]
@@ -332,12 +404,12 @@ cfg := &Config{
         URL: getEnvRequired("RABBITMQ_URL"),
     },
     Email: EmailConfig{
-        Provider:        getEnvOptional("EMAIL_PROVIDER", "sendgrid"),
-        FromEmail:       getEnvOptional("EMAIL_FROM_EMAIL", ""),
-        FromName:        getEnvOptional("EMAIL_FROM_NAME", ""),
-        SendGridKey:     getEnvOptional("SENDGRID_API_KEY", ""),
-        SendGridBaseURL: getEnvOptional("SENDGRID_BASE_URL", ""),
-        SendGridTimeout: getEnvOptionalDuration("SENDGRID_TIMEOUT", 10*time.Second),
+        Provider:      getEnvOptional("EMAIL_PROVIDER", "resend"),
+        FromEmail:     getEnvOptional("EMAIL_FROM_EMAIL", ""),
+        FromName:      getEnvOptional("EMAIL_FROM_NAME", ""),
+        ResendAPIKey:  getEnvOptional("RESEND_API_KEY", ""),
+        ResendBaseURL: getEnvOptional("RESEND_BASE_URL", ""),
+        ResendTimeout: getEnvOptionalDuration("RESEND_TIMEOUT", 10*time.Second),
     },
 }
 ```
@@ -357,8 +429,8 @@ cfg := &Config{
 
 - `provider.go`
   Email provider abstraction and provider selection
-- `sendgrid.go`
-  Production SendGrid Mail Send API implementation used by the worker path
+- `resend.go`
+  Production Resend email API implementation used by the worker path
 - `ses.go`
   Alternative provider direction for AWS SES
 
@@ -805,17 +877,17 @@ RATE_LIMIT_MAX_REQUESTS=5
 RATE_LIMIT_WINDOW=1m
 IDEMPOTENCY_ENABLED=true
 IDEMPOTENCY_TTL=10m
-EMAIL_PROVIDER=sendgrid
+EMAIL_PROVIDER=resend
 EMAIL_FROM_EMAIL=no-reply@example.com
 EMAIL_FROM_NAME=Newsletter Team
-SENDGRID_API_KEY=<your-sendgrid-api-key>
-SENDGRID_BASE_URL=https://api.sendgrid.com
-SENDGRID_TIMEOUT=10s
+RESEND_API_KEY=<your-resend-api-key>
+RESEND_BASE_URL=https://api.resend.com
+RESEND_TIMEOUT=10s
 ADMIN_API_KEY=<your-admin-key>
 WORKER_METRICS_PORT=3002
 ```
 
-For a working SendGrid setup, make sure the `EMAIL_FROM_EMAIL` value is a verified sender identity in your SendGrid account.
+For a working Resend setup, make sure the `EMAIL_FROM_EMAIL` value belongs to a verified domain in your Resend account. For quick local testing, Resend also offers `onboarding@resend.dev` with testing limitations.
 
 ## Observability
 

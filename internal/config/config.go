@@ -3,8 +3,10 @@ package config
 import (
 	"fmt"
 	"log"
+	"net/mail"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -57,9 +59,13 @@ type RabbitMQConfig struct {
 }
 
 type EmailConfig struct {
-	Provider    string
-	SendGridKey string
-	SESRegion   string
+	Provider      string
+	FromEmail     string
+	FromName      string
+	ResendAPIKey  string
+	ResendBaseURL string
+	ResendTimeout time.Duration
+	SESRegion     string
 }
 
 type AdminConfig struct {
@@ -105,9 +111,13 @@ func Load() *Config {
 			URL: getEnvRequired("RABBITMQ_URL"),
 		},
 		Email: EmailConfig{
-			Provider:    getEnvOptional("EMAIL_PROVIDER", "sendgrid"),
-			SendGridKey: getEnvOptional("SENDGRID_API_KEY", ""),
-			SESRegion:   getEnvOptional("AWS_SES_REGION", "us-east-1"),
+			Provider:      getEnvOptional("EMAIL_PROVIDER", "resend"),
+			FromEmail:     getEnvOptional("EMAIL_FROM_EMAIL", ""),
+			FromName:      getEnvOptional("EMAIL_FROM_NAME", ""),
+			ResendAPIKey:  getEnvOptional("RESEND_API_KEY", ""),
+			ResendBaseURL: getEnvOptional("RESEND_BASE_URL", ""),
+			ResendTimeout: getEnvOptionalDuration("RESEND_TIMEOUT", 10*time.Second),
+			SESRegion:     getEnvOptional("AWS_SES_REGION", "us-east-1"),
 		},
 		Admin: AdminConfig{
 			APIKey: getEnvOptional("ADMIN_API_KEY", ""),
@@ -145,6 +155,27 @@ func (c *Config) ValidateForWorker() error {
 	if c.Email.Provider == "" {
 		return fmt.Errorf("EMAIL_PROVIDER is required for the worker process")
 	}
+	if c.Email.ResendTimeout <= 0 {
+		return fmt.Errorf("RESEND_TIMEOUT must be greater than 0")
+	}
+
+	switch strings.ToLower(strings.TrimSpace(c.Email.Provider)) {
+	case "resend":
+		if c.Email.ResendAPIKey == "" {
+			return fmt.Errorf("RESEND_API_KEY is required when EMAIL_PROVIDER=resend")
+		}
+		if c.Email.FromEmail == "" {
+			return fmt.Errorf("EMAIL_FROM_EMAIL is required when EMAIL_PROVIDER=resend")
+		}
+		if _, err := mail.ParseAddress(c.Email.FromEmail); err != nil {
+			return fmt.Errorf("EMAIL_FROM_EMAIL must be a valid email address: %w", err)
+		}
+	case "ses":
+		return fmt.Errorf("EMAIL_PROVIDER=ses is not implemented yet")
+	default:
+		return fmt.Errorf("unsupported EMAIL_PROVIDER: %s", c.Email.Provider)
+	}
+
 	return nil
 }
 

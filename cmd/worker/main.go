@@ -35,7 +35,10 @@ func main() {
 	defer queueConn.Close()
 
 	newsletterRepo := postgres.NewNewsletterRepository(db)
-	emailProvider := email.NewSendGridProvider(cfg.Email.SendGridKey)
+	emailProvider, err := email.NewProvider(cfg.Email)
+	if err != nil {
+		log.Fatalf("failed to initialize email provider: %v", err)
+	}
 	consumer := queue.NewConsumer(queueConn, emailProvider, newsletterRepo)
 
 	workerCtx, workerCancel := context.WithCancel(context.Background())

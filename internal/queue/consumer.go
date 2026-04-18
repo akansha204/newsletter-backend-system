@@ -150,7 +150,7 @@ func (c *Consumer) processConfirmationMessage(msg amqp.Delivery) {
 	)
 
 	if err := c.emailProvider.Send(payload.Email, subject, body); err != nil {
-		log.Printf("failed to send confirmation email to %s: %v", payload.Email, err)
+		// log.Printf("failed to send confirmation email to %s: %v", payload.Email, err) // suppressed during development
 		metrics.EmailsFailed.Inc()
 		msg.Nack(false, true) // requeue
 		return
@@ -176,7 +176,7 @@ func (c *Consumer) processNewsletterMessage(msg amqp.Delivery) {
 	metrics.EmailProcessingDuration.Observe(duration)
 
 	if err != nil {
-		log.Printf("failed to send newsletter to %s: %v", payload.Email, err)
+		// log.Printf("failed to send newsletter to %s: %v", payload.Email, err) // suppressed during development
 
 		metrics.EmailsFailed.Inc()
 		_ = c.newsletterRepo.IncrementFailCount(payload.NewsletterID)

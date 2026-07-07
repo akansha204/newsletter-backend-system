@@ -310,10 +310,11 @@ for _, sub := range subscribers {
 │   ├── redis/           # Redis client wiring
 │   └── repository/      # repository interfaces and PostgreSQL implementations
 ├── migrations/          # schema creation scripts
+├── mobile/              # React Native (Expo) app: subscribe, admin, dashboard
 ├── sdk/
 │   ├── go/
 │   ├── python/
-│   └── typescript/
+│   └── typescript/      # npm workspace package @newsletter/sdk, shared with mobile/
 ├── tests/
 │   └── k6/              # load tests
 ├── Makefile
@@ -561,14 +562,31 @@ export const options = {
 - `GET /api/v1/health`
 - `GET /api/v1/metrics`
 
-### Protected Endpoint
+### Protected Endpoints
 
 - `POST /api/v1/newsletter/send`
+- `GET /api/v1/newsletter/sends?limit=&offset=` — paginated send history
+- `GET /api/v1/newsletter/sends/:id` — a single send with live sent/fail counters
+- `GET /api/v1/stats` — subscriber counts plus aggregate send totals
 
 Required headers:
 
-- `X-API-Key: <admin key>`
-- `Idempotency-Key: <unique request key>` when idempotency is enabled
+- `X-API-Key: <admin key>` on all protected endpoints
+- `Idempotency-Key: <unique request key>` on `POST /newsletter/send` when idempotency is enabled
+
+`GET /api/v1/stats` response shape:
+
+```json
+{
+  "subscribers": { "total": 42, "confirmed": 40 },
+  "newsletters": {
+    "total": 7,
+    "sent_total": 268,
+    "fail_total": 0,
+    "last_send": { "id": "…", "subject": "…", "status": "sending", "sent_count": 12, "fail_count": 0 }
+  }
+}
+```
 
 ## SDK Usage
 
@@ -735,7 +753,9 @@ except APIError as exc:
 
 Import path:
 
-If you are consuming the SDK directly from this repository, import from the `sdk/typescript` directory.
+If you are consuming the SDK directly from this repository, import from the `sdk/typescript` directory. Inside this repo it is also available as the npm workspace package `@newsletter/sdk` (this is how the Expo app in `mobile/` consumes it).
+
+Admin read endpoints are exposed as `listNewsletterSends(options)`, `getNewsletterSend(id)`, and `stats()` — all require an API key, like `sendNewsletter`.
 
 Browser quick start for a newsletter signup form:
 
@@ -810,6 +830,44 @@ try {
   }
 }
 ```
+
+## Mobile App (React Native / Expo)
+
+The [mobile/](mobile/) directory contains an Expo app that consumes the API through the shared TypeScript SDK (`@newsletter/sdk`, linked via npm workspaces from [sdk/typescript](sdk/typescript/)).
+
+Tabs:
+
+- **Subscribe** — public signup form plus manual confirmation-token entry
+- **Admin** — newsletter send history with live sent/fail counts, per-send detail (polls while a send is in flight), and a compose screen that dispatches with a generated idempotency key
+- **Dashboard** — subscriber and delivery stat tiles from `/api/v1/stats` plus per-dependency health from `/api/v1/health`, refreshed every 10 seconds
+- **Settings** — API base URL and admin API key (stored in the device keychain via `expo-secure-store`), with a connection test button
+
+### Running the app
+
+```bash
+# from the repo root — installs mobile + SDK workspace deps
+npm install
+
+cd mobile
+npx expo start
+```
+
+Then press `i` for the iOS simulator, `a` for Android, or scan the QR code with Expo Go.
+
+### Pointing the app at your API
+
+The API base URL resolves in this order: the value saved in Settings → the `EXPO_PUBLIC_API_URL` env var → unset (the app prompts you).
+
+- iOS simulator: `http://localhost:3001` works
+- Android emulator: use `http://10.0.2.2:3001` (the emulator's alias for the host)
+- Physical device (Expo Go): use your machine's LAN IP, e.g. `http://192.168.1.20:3001` — the device and your machine must be on the same network
+
+```bash
+# optional: bake in a default at start time
+EXPO_PUBLIC_API_URL=http://192.168.1.20:3001 npx expo start
+```
+
+The Admin and Dashboard tabs need the `ADMIN_API_KEY` value from your `.env`, entered once in the Settings tab.
 
 ## Local Infrastructure
 

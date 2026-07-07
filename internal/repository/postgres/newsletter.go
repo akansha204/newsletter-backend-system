@@ -52,6 +52,35 @@ func (r *newsletterRepo) IncrementSentCount(id string) error {
 	return err
 }
 
+func (r *newsletterRepo) List(limit, offset int) ([]domain.NewsletterSend, error) {
+	var sends []domain.NewsletterSend
+	err := r.db.Select(
+		&sends,
+		"SELECT * FROM newsletter_sends ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+		limit,
+		offset,
+	)
+	return sends, err
+}
+
+func (r *newsletterRepo) CountAll() (int, error) {
+	var count int
+	err := r.db.Get(&count, "SELECT COUNT(*) FROM newsletter_sends")
+	return count, err
+}
+
+func (r *newsletterRepo) SumCounts() (int, int, error) {
+	var totals struct {
+		Sent   int `db:"sent"`
+		Failed int `db:"failed"`
+	}
+	err := r.db.Get(
+		&totals,
+		"SELECT COALESCE(SUM(sent_count), 0) AS sent, COALESCE(SUM(fail_count), 0) AS failed FROM newsletter_sends",
+	)
+	return totals.Sent, totals.Failed, err
+}
+
 func (r *newsletterRepo) IncrementFailCount(id string) error {
 	_, err := r.db.Exec(
 		"UPDATE newsletter_sends SET fail_count = fail_count + 1, updated_at = NOW() WHERE id = $1",

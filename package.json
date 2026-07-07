@@ -1,0 +1,8 @@
+{
+  "name": "newsletter-backend-system",
+  "private": true,
+  "workspaces": [
+    "mobile",
+    "sdk/typescript"
+  ]
+}

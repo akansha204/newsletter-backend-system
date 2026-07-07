@@ -47,6 +47,54 @@ export interface RequestOptions {
 export interface NewsletterSendResponse {
   message: string;
   total: number;
+  id?: string;
+}
+
+export interface NewsletterSendRecord {
+  id: string;
+  subject: string;
+  body: string;
+  status: string;
+  sent_count: number;
+  fail_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NewsletterListOptions {
+  limit?: number;
+  offset?: number;
+  apiKey?: string;
+  signal?: unknown;
+}
+
+export interface NewsletterListResponse {
+  items: NewsletterSendRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AdminRequestOptions {
+  apiKey?: string;
+  signal?: unknown;
+}
+
+export interface SubscriberStats {
+  total: number;
+  confirmed: number;
+}
+
+export interface NewsletterStats {
+  total: number;
+  sent_total: number;
+  fail_total: number;
+  last_send?: NewsletterSendRecord;
+}
+
+export interface StatsResponse {
+  subscribers: SubscriberStats;
+  newsletters: NewsletterStats;
 }
 
 export interface HealthCheck {
@@ -160,6 +208,62 @@ export class NewsletterClient {
       headers,
       signal: options.signal,
     })) as NewsletterSendResponse;
+  }
+
+  async listNewsletterSends(
+    options: NewsletterListOptions = {}
+  ): Promise<NewsletterListResponse> {
+    const params: string[] = [];
+    if (options.limit !== undefined) {
+      params.push(`limit=${encodeURIComponent(String(options.limit))}`);
+    }
+    if (options.offset !== undefined) {
+      params.push(`offset=${encodeURIComponent(String(options.offset))}`);
+    }
+    const query = params.join("&");
+
+    return (await this.request<NewsletterListResponse>(
+      `/api/v1/newsletter/sends${query ? `?${query}` : ""}`,
+      {
+        method: "GET",
+        headers: this.adminHeaders(options.apiKey),
+        signal: options.signal,
+      }
+    )) as NewsletterListResponse;
+  }
+
+  async getNewsletterSend(
+    id: string,
+    options: AdminRequestOptions = {}
+  ): Promise<NewsletterSendRecord> {
+    if (!id.trim()) {
+      throw new Error("id is required");
+    }
+
+    return (await this.request<NewsletterSendRecord>(
+      `/api/v1/newsletter/sends/${encodeURIComponent(id)}`,
+      {
+        method: "GET",
+        headers: this.adminHeaders(options.apiKey),
+        signal: options.signal,
+      }
+    )) as NewsletterSendRecord;
+  }
+
+  async stats(options: AdminRequestOptions = {}): Promise<StatsResponse> {
+    return (await this.request<StatsResponse>("/api/v1/stats", {
+      method: "GET",
+      headers: this.adminHeaders(options.apiKey),
+      signal: options.signal,
+    })) as StatsResponse;
+  }
+
+  private adminHeaders(apiKeyOverride?: string): Record<string, string> {
+    const apiKey = apiKeyOverride ?? this.apiKey;
+    if (!apiKey?.trim()) {
+      throw new Error("apiKey is required for admin endpoints");
+    }
+    return { "X-API-Key": apiKey };
   }
 
   async health(options: RequestOptions = {}): Promise<HealthResponse> {

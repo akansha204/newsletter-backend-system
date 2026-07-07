@@ -9,6 +9,9 @@
 # Go
 vendor/
 
+# Node (npm workspaces: mobile app + TypeScript SDK)
+node_modules/
+
 # OS
 .DS_Store
 Thumbs.db

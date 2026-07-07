@@ -10,6 +10,7 @@ import (
 	"github.com/akansh204/newsletter-backend-system/internal/repository/postgres"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/jmoiron/sqlx"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
@@ -43,6 +44,7 @@ func SetupRoutes(app *fiber.App, db *sqlx.DB, redisClient *redis.Client, queueCo
 	subscribeHandler := handlers.NewSubscribeHandler(subscriberRepo, publisher)
 	confirmHandler := handlers.NewConfirmHandler(subscriberRepo)
 	newsletterHandler := handlers.NewNewsletterHandler(subscriberRepo, newsletterRepo, publisher)
+	statsHandler := handlers.NewStatsHandler(subscriberRepo, newsletterRepo)
 	healthDependencies := map[string]handlers.HealthDependency{
 		"database": dbHealthChecker{db: db},
 		"rabbitmq": queueConn,
@@ -53,6 +55,10 @@ func SetupRoutes(app *fiber.App, db *sqlx.DB, redisClient *redis.Client, queueCo
 	healthHandler := handlers.NewHealthHandler(healthDependencies)
 
 	//routes
+	app.Use(cors.New(cors.Config{
+		AllowHeaders: "Content-Type, X-API-Key, Idempotency-Key",
+	}))
+
 	api := app.Group("/api/v1")
 	api.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
 	api.Get("/health", healthHandler.Check)
@@ -72,5 +78,8 @@ func SetupRoutes(app *fiber.App, db *sqlx.DB, redisClient *redis.Client, queueCo
 	} else {
 		newsletterapi.Post("/send", newsletterHandler.HandleSend)
 	}
+	newsletterapi.Get("/sends", newsletterHandler.HandleList)
+	newsletterapi.Get("/sends/:id", newsletterHandler.HandleGet)
 
+	api.Get("/stats", middleware.APIKeyAuth(adminAPIKey), statsHandler.Handle)
 }

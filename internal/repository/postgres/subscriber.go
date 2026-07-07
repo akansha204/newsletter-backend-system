@@ -56,3 +56,15 @@ func (r *subscriberRepo) FindAllConfirmed() ([]domain.Subscriber, error) {
 	err := r.db.Select(&subscribers, "SELECT * FROM subscribers WHERE confirmed = true")
 	return subscribers, err
 }
+
+func (r *subscriberRepo) CountAll() (int, error) {
+	var count int
+	err := r.db.Get(&count, "SELECT COUNT(*) FROM subscribers")
+	return count, err
+}
+
+func (r *subscriberRepo) CountConfirmed() (int, error) {
+	var count int
+	err := r.db.Get(&count, "SELECT COUNT(*) FROM subscribers WHERE confirmed = true")
+	return count, err
+}

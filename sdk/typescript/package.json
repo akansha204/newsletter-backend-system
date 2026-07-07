@@ -1,0 +1,8 @@
+{
+  "name": "@newsletter/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript client for the newsletter backend API",
+  "main": "index.ts",
+  "types": "index.ts",
+  "sideEffects": false
+}

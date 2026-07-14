@@ -835,6 +835,8 @@ try {
 
 The [mobile/](mobile/) directory contains an Expo app that consumes the API through the shared TypeScript SDK (`@newsletter/sdk`, linked via npm workspaces from [sdk/typescript](sdk/typescript/)).
 
+![Mobile App Screens](<mobile/app_screenshots/Screenshot From 2026-07-14 09-16-03.png>)
+
 Tabs:
 
 - **Subscribe** — public signup form plus manual confirmation-token entry
